@@ -8,6 +8,7 @@ license = { text = "MIT" }
 dependencies = [
     "fastembed>=0.4",
     "lancedb>=0.15",
+    "pylance>=0.10",
     "typer>=0.12",
     "tiktoken>=0.7",
     "rich>=13.7",
@@ -20,6 +21,7 @@ search = "flash_rag.cli:search"
 db-init = "flash_rag.cli:db_init"
 db-refresh = "flash_rag.cli:db_refresh"
 db-status = "flash_rag.cli:db_status"
+db-report = "flash_rag.cli:db_report"
 
 [build-system]
 requires = ["hatchling"]

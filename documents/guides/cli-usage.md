@@ -79,6 +79,16 @@ uv run db-status
 Shows model, vector dimension, indexed file count, chunk count, and
 created/updated timestamps.
 
-## Addendum
+## `db-report`
 
-This addendum was appended to test incremental updates.
+```
+uv run db-report [--json]
+```
+
+Full inventory of the knowledge base:
+
+- totals: indexed files, chunks, total tokens, index size on disk
+- per-directory breakdown (files / chunks / tokens)
+- per-file breakdown, sorted by token count
+- files that exist in `documents/` but are **not** indexed (unsupported
+  suffixes like `.pdf`/images, empty or oversized files)

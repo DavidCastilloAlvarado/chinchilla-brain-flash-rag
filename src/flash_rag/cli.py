@@ -31,6 +31,7 @@ from .index import (
 )
 from .search import run_search
 from .store import Store
+from .report import build_report
 
 console = Console()
 err_console = Console(stderr=True)
@@ -227,6 +228,78 @@ def _status_cmd() -> None:
 
 def db_status() -> None:
     _status_app()
+
+
+# ---------------------------------------------------------------------------
+# db-report
+# ---------------------------------------------------------------------------
+
+_report_app = typer.Typer(add_completion=False)
+
+
+def _print_report(data: dict) -> None:
+    console.print("[bold]Knowledge base report[/]")
+    unindexed_note = (
+        f", [yellow]{data['files_unindexed']} unindexed[/]"
+        if data["files_unindexed"]
+        else ""
+    )
+    console.print(f"  model      {data['model']} ({data['dim']}-dim)")
+    console.print(f"  files      {data['files_indexed']} indexed{unindexed_note}")
+    console.print(f"  chunks     {data['chunks']}")
+    console.print(f"  tokens     {data['total_tokens']:,}")
+    console.print(f"  index size {data['index_bytes'] / (1024 * 1024):.1f} MB")
+    console.print(f"  updated    {data['updated']}")
+    console.print()
+
+    t = Table(title="By directory")
+    t.add_column("dir")
+    t.add_column("files", justify="right")
+    t.add_column("chunks", justify="right")
+    t.add_column("tokens", justify="right")
+    for d, st in sorted(data["by_dir"].items()):
+        t.add_row(d, str(st["files"]), str(st["chunks"]), f"{st['tokens']:,}")
+    console.print(t)
+
+    t2 = Table(title="By file")
+    t2.add_column("file")
+    t2.add_column("chunks", justify="right")
+    t2.add_column("tokens", justify="right")
+    for row in data["by_file"]:
+        t2.add_row(row["file"], str(row["chunks"]), f"{row['tokens']:,}")
+    console.print(t2)
+
+    if data["unindexed"]:
+        console.print(f"[yellow]{len(data['unindexed'])} unindexed file(s):[/]")
+        for u in data["unindexed"][:10]:
+            console.print(f"  [dim]- {u['file']} ({u['reason']})[/]")
+        if len(data["unindexed"]) > 10:
+            console.print(f"  [dim]… and {len(data['unindexed']) - 10} more[/]")
+
+
+@_report_app.command()
+def _report_cmd(
+    as_json: bool = typer.Option(
+        False, "--json", help="Machine-readable JSON output (for agents)."
+    ),
+) -> None:
+    """Report: file/chunk/token totals plus per-directory and per-file breakdown."""
+    cfg = load_config()
+    try:
+        data = build_report(cfg)
+    except NotInitialized:
+        _print_not_initialized()
+        raise typer.Exit(EXIT_NOT_INITIALIZED)
+    except Exception as exc:  # noqa: BLE001
+        _fail(f"db-report failed: {exc}")
+    if as_json:
+        print(json.dumps(data, indent=2, ensure_ascii=False))
+        return
+    _print_report(data)
+
+
+def db_report() -> None:
+    _report_app()
 
 
 if __name__ == "__main__":

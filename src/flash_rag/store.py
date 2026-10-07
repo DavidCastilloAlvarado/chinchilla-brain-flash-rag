@@ -62,6 +62,10 @@ class Store:
     def _table(self):
         return self._db.open_table(TABLE_NAME)
 
+    def table(self):
+        """Public accessor for the LanceDB table (used by reports)."""
+        return self._table()
+
     def create(self, rows: list[dict], dim: int) -> None:
         if self.exists():
             self.drop()

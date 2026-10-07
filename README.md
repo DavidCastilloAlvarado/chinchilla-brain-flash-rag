@@ -30,6 +30,7 @@ uv run search "chunking strategy"
 | `uv run db-init` | First-time build: map, chunk and embed all supported files. `--force` rebuilds from scratch |
 | `uv run db-refresh` | Incremental sync: hash-diff files, embed only what's new/changed, drop deleted |
 | `uv run db-status` | Model, file/chunk counts, timestamps |
+| `uv run db-report` | Report: file/chunk/token totals + per-directory and per-file breakdown (`--json`) |
 
 If `search` runs before `db-init`, it prints a hint to run `uv run db-init`
 and exits with code **2** (so agents can detect and react).
