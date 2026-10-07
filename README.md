@@ -65,7 +65,16 @@ documents/  ──►  scan (SHA-256)  ──►  chunk (markdown-aware, ~512 to
   SHA-256; `db-refresh` re-embeds only new/changed files and deletes chunks
   of removed files.
 
-## Configuration (env vars)
+## Configuration (env vars / `.env`)
+
+All settings come from environment variables. To avoid `export`-ing them,
+copy the template and edit a local `.env` (git-ignored):
+
+```bash
+cp .env.example .env    # then edit values
+```
+
+Real environment variables always take precedence over `.env`.
 
 | Variable | Default | Meaning |
 |---|---|---|

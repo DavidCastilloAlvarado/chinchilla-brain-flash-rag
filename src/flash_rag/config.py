@@ -1,10 +1,14 @@
 """Runtime configuration: project root, paths, model, chunking parameters.
 
-Everything can be overridden with environment variables:
+Everything can be overridden with environment variables, either exported in
+the shell or stored in a ``.env`` file at the project root (see
+``.env.example``). Real environment variables always take precedence over
+the ``.env`` file.
 
 - ``FLASH_RAG_MODEL``     embedding model (fastembed name), default nomic-ai/nomic-embed-text-v1.5
 - ``FLASH_RAG_DOCS_DIR``  documents directory (default ``<root>/documents``)
 - ``FLASH_RAG_DATA_DIR``  data directory (default ``<root>/.data``)
+- ``FLASH_RAG_PROVIDERS`` comma-separated ONNX Runtime providers (GPU on Apple Silicon)
 """
 
 from __future__ import annotations
@@ -12,6 +16,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 PROJECT_NAME = "flash-rag"
 DEFAULT_MODEL = "nomic-ai/nomic-embed-text-v1.5"
@@ -75,8 +81,16 @@ class Config:
         return self.data_dir / "meta.json"
 
 
+def _load_env_file(root: Path) -> None:
+    """Load ``<root>/.env`` if present. Real env vars always win (override=False)."""
+    env_file = root / ".env"
+    if env_file.is_file():
+        load_dotenv(env_file, override=False)
+
+
 def load_config(start: Path | None = None) -> Config:
     root = find_project_root(start)
+    _load_env_file(root)
 
     raw_docs = os.environ.get("FLASH_RAG_DOCS_DIR", "").strip()
     docs_dir = Path(raw_docs) if raw_docs else root / "documents"

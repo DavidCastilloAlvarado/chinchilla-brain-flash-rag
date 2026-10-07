@@ -8,6 +8,10 @@ __pycache__/
 # NEVER commit: only the original documents inside documents/ are source.
 .data/
 
+# Local environment (models, paths, providers) — use .env.example as template
+.env
+.env.local
+
 # OS / editor noise
 .DS_Store
 .idea/

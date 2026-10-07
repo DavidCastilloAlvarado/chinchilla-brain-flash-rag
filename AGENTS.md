@@ -35,8 +35,10 @@ uv run search "your question or topic" --json
 - `uv run db-status` shows model, file/chunk counts and last update.
 - `uv run db-report` (or `--json`) gives a full inventory: totals, per-directory
   and per-file chunk/token counts, and files that exist but are not indexed.
-- Never commit `.data/` (chunks, vector index, embeddings, manifests).
-  Only `documents/` and code are source.
+- Never commit `.data/` (chunks, vector index, embeddings, manifests) or
+  `.env` (local config). Only `documents/` and code are source.
+- Settings live in `.env` (template: `.env.example`) — model, paths, and
+  ONNX providers; real env vars take precedence.
 - If you change `FLASH_RAG_MODEL`, rebuild with `uv run db-init --force`
   (different model = different vector space).
 
