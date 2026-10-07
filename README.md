@@ -17,7 +17,7 @@ Hugging Face and cached in `~/.cache/fastembed`.
 ## Quick start
 
 ```bash
-uv sync           # install dependencies into .venv
+uv sync --system-certs          # install dependencies into .venv
 uv run db-init    # scan documents/, chunk + embed everything (one-time)
 uv run search "chunking strategy"
 ```
