@@ -1,0 +1,29 @@
+[project]
+name = "flash-rag"
+version = "0.1.0"
+description = "Local semantic search over documents/ — a repo-local knowledge base for humans and AI agents (Copilot, DSH, Codex, ...)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "fastembed>=0.4",
+    "lancedb>=0.15",
+    "typer>=0.12",
+    "tiktoken>=0.7",
+    "rich>=13.7",
+    "numpy>=1.26",
+    "pyarrow>=15",
+]
+
+[project.scripts]
+search = "flash_rag.cli:search"
+db-init = "flash_rag.cli:db_init"
+db-refresh = "flash_rag.cli:db_refresh"
+db-status = "flash_rag.cli:db_status"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/flash_rag"]

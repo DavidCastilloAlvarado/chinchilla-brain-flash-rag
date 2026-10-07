@@ -1,0 +1,22 @@
+Meeting notes — 2026-10-07
+
+Topic: chinchilla-brain-flash-rag, first build
+
+Attendees: David
+
+Decisions:
+- The repo doubles as a local knowledge base: documents/ is the source of
+  truth, everything else (chunks, index, embeddings) is derived and git-ignored.
+- CLI surface stays tiny: search, db-init, db-refresh, db-status.
+- Agents (Copilot, DSH, Codex) query the repo with: uv run search "query" --json
+- If a search runs before initialization, the CLI must tell the user to run
+  uv run db-init (exit code 2).
+- Embeddings stay 100% local (Hugging Face model via fastembed/ONNX). No cloud
+  APIs, no API keys.
+
+Action items:
+- [x] Scaffold uv project with the four CLI commands
+- [x] Pick local vector engine (LanceDB) and embedding model (nomic-embed-text-v1.5)
+- [ ] Add sample documents and verify end-to-end init/search/refresh
+- [ ] Write AGENTS.md so any harness discovers the repo as a knowledge source
+- [ ] Later: PDF/image ingestion, hybrid BM25+vector search

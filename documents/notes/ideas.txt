@@ -1,0 +1,13 @@
+Ideas / backlog
+
+- Hybrid search: fuse BM25 (FTS5 or Tantivy) with vector results via
+  Reciprocal Rank Fusion; keyword hits help with exact identifiers (API names,
+  error codes) that dense vectors miss.
+- Reranker: cross-encoder (e.g. ms-marco-MiniLM) over the top-20 to sharpen
+  the top-5.
+- PDF ingestion: pypdf or unstructured for text extraction, then the same
+  chunker. Images: caption with a local VLM, index the caption.
+- Watch fastembed model list for Qwen3-Embedding-0.6B (32k context) once it
+  lands in ONNX form — could be a quality upgrade with one env var.
+- Consider sqlite-vec if we ever want SQL-native queries over the index.
+- Add a `search --explain` flag that shows which metadata matched.

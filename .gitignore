@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+
+# Local RAG data — chunks, vector index, embeddings, manifests.
+# NEVER commit: only the original documents inside documents/ are source.
+.data/
+
+# OS / editor noise
+.DS_Store
+.idea/
+.vscode/
