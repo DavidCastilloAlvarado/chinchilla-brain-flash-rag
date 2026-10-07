@@ -73,6 +73,10 @@ class Config:
         return self.data_dir / "lancedb"
 
     @property
+    def model_cache_dir(self) -> Path:
+        return self.data_dir / "models"
+
+    @property
     def manifest_path(self) -> Path:
         return self.data_dir / "manifest.json"
 

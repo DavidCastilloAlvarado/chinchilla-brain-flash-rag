@@ -2,7 +2,7 @@
 
 fastembed is the most efficient local option: quantized ONNX weights,
 CPU-only inference, and it downloads models straight from Hugging Face on
-first use (cached in ``~/.cache/fastembed``).
+first use (cached under the configured data directory).
 
 The model name is a fastembed model id, e.g.::
 
@@ -14,18 +14,24 @@ The model name is a fastembed model id, e.g.::
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastembed import TextEmbedding
 
 
 class Embedder:
     """Thin wrapper around fastembed's TextEmbedding."""
 
-    def __init__(self, model_name: str, providers: tuple[str, ...] = ()):
+    def __init__(
+        self, model_name: str, providers: tuple[str, ...] = (), *, cache_dir: Path
+    ):
         self.model_name = model_name
         if providers:
-            self._model = TextEmbedding(model_name, providers=list(providers))
+            self._model = TextEmbedding(
+                model_name, cache_dir=str(cache_dir), providers=list(providers)
+            )
         else:
-            self._model = TextEmbedding(model_name)
+            self._model = TextEmbedding(model_name, cache_dir=str(cache_dir))
 
     @property
     def dim(self) -> int:

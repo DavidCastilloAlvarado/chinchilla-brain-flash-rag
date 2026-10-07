@@ -83,11 +83,14 @@ Real environment variables always take precedence over `.env`.
 | `FLASH_RAG_DATA_DIR` | `<root>/.data` | where the index lives |
 | `FLASH_RAG_PROVIDERS` | (CPU) | comma-separated ONNX Runtime providers, e.g. `CoreMLExecutionProvider,CPUExecutionProvider` on Apple Silicon to use the GPU |
 
+Embedding model files are cached in `<FLASH_RAG_DATA_DIR>/models` (by default,
+`.data/models`) and reused by both indexing and search.
+
 ## What is committed vs. not
 
 | Committed | Not committed (git-ignored) |
 |---|---|
-| `documents/**` (original files) | `.data/` (LanceDB index, chunks, embeddings, manifests) |
+| `documents/**` (original files) | `.data/` (LanceDB index, chunks, embeddings, model files, manifests) |
 | code, `pyproject.toml`, `uv.lock` | `.venv/`, `__pycache__/` |
 
 ## For AI agents
