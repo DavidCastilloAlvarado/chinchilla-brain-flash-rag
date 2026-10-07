@@ -60,6 +60,7 @@ class Config:
     docs_dir: Path
     data_dir: Path
     model: str
+    providers: tuple[str, ...] = ()  # ONNX Runtime providers, e.g. ("CoreMLExecutionProvider",)
 
     @property
     def lancedb_dir(self) -> Path:
@@ -88,4 +89,6 @@ def load_config(start: Path | None = None) -> Config:
         data_dir = root / data_dir
 
     model = os.environ.get("FLASH_RAG_MODEL", DEFAULT_MODEL)
-    return Config(root=root, docs_dir=docs_dir, data_dir=data_dir, model=model)
+    raw_providers = os.environ.get("FLASH_RAG_PROVIDERS", "").strip()
+    providers = tuple(p.strip() for p in raw_providers.split(",") if p.strip())
+    return Config(root=root, docs_dir=docs_dir, data_dir=data_dir, model=model, providers=providers)

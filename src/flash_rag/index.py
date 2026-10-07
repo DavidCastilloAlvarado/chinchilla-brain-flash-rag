@@ -103,7 +103,7 @@ def _embed_texts(
         f"Loading embedding model [bold]{cfg.model}[/] "
         "(downloaded from Hugging Face on first use, then cached)…"
     )
-    embedder = Embedder(cfg.model)
+    embedder = Embedder(cfg.model, cfg.providers)
     dim = embedder.dim
     vectors: list[list[float]] = []
     with Progress(

@@ -18,7 +18,7 @@ def run_search(
     store = Store(cfg.data_dir, cfg.model)
     if not store.exists():
         raise NotInitialized()
-    embedder = Embedder(cfg.model)
+    embedder = Embedder(cfg.model, cfg.providers)
     vector = embedder.embed([query])[0]
     hits = store.search(vector, top_k, path_filter)
 

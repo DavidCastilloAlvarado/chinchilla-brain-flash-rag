@@ -72,6 +72,7 @@ documents/  ──►  scan (SHA-256)  ──►  chunk (markdown-aware, ~512 to
 | `FLASH_RAG_MODEL` | `nomic-ai/nomic-embed-text-v1.5` | fastembed model id |
 | `FLASH_RAG_DOCS_DIR` | `<root>/documents` | documents to index |
 | `FLASH_RAG_DATA_DIR` | `<root>/.data` | where the index lives |
+| `FLASH_RAG_PROVIDERS` | (CPU) | comma-separated ONNX Runtime providers, e.g. `CoreMLExecutionProvider,CPUExecutionProvider` on Apple Silicon to use the GPU |
 
 ## What is committed vs. not
 

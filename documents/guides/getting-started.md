@@ -44,3 +44,19 @@ FLASH_RAG_MODEL="BAAI/bge-small-en-v1.5" uv run db-init --force
 
 > ⚠️ Changing the model changes the vector space — always rebuild with
 > `db-init --force` after switching models.
+
+## Using the GPU on Apple Silicon (M1/M2/M3/M4)
+
+By default embeddings run on the CPU via ONNX Runtime. On a Mac you can route
+inference through CoreML (GPU/ANE) with one env var — no code changes:
+
+```bash
+export FLASH_RAG_PROVIDERS="CoreMLExecutionProvider,CPUExecutionProvider"
+uv run db-init --force
+```
+
+The fallback list keeps any op CoreML can't run on the CPU. Note that the
+M3's CPU is already several times faster than a typical laptop CPU, so
+CPU-only is often plenty; use CoreML for the extra margin. Switching
+providers does **not** change the vectors — no re-indexing needed unless you
+also change the model.

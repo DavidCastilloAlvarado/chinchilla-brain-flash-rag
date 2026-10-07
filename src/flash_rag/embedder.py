@@ -20,9 +20,12 @@ from fastembed import TextEmbedding
 class Embedder:
     """Thin wrapper around fastembed's TextEmbedding."""
 
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str, providers: tuple[str, ...] = ()):
         self.model_name = model_name
-        self._model = TextEmbedding(model_name)
+        if providers:
+            self._model = TextEmbedding(model_name, providers=list(providers))
+        else:
+            self._model = TextEmbedding(model_name)
 
     @property
     def dim(self) -> int:
