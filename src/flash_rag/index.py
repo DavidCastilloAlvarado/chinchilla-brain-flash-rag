@@ -19,7 +19,7 @@ from .chunker import chunk_file, chunk_text
 from .config import EMBED_BATCH_SIZE, Config
 from .embedder import Embedder
 from .pdf import extract_pdf_pages
-from .scanner import FileRecord, scan_files
+from .scanner import FileRecord, scan_files, scan_workspace_dir
 from .store import Store
 
 
@@ -65,6 +65,23 @@ def _save_manifest(cfg: Config, manifest: dict) -> None:
     cfg.manifest_path.write_text(
         json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
     )
+
+
+def _scan_all(cfg: Config) -> tuple[list[FileRecord], list[str]]:
+    """Scan documents/ plus every configured workspace dir (deduped by file)."""
+    records, skipped = scan_files(cfg.docs_dir)
+    seen = {rec.abs_path for rec in records}
+    for ws in cfg.workspace_dirs:
+        if not ws.is_dir():
+            skipped.append(f"workspace dir {ws}: not found (skipped)")
+            continue
+        ws_records, ws_skipped = scan_workspace_dir(ws, cfg.root)
+        skipped.extend(ws_skipped)
+        for rec in ws_records:
+            if rec.abs_path not in seen:
+                seen.add(rec.abs_path)
+                records.append(rec)
+    return records, skipped
 
 
 def _read_file(rec: FileRecord) -> str | None:
@@ -223,7 +240,7 @@ def build(cfg: Config, force: bool = False, console: Console | None = None) -> I
         store.drop()
 
     stats = IndexStats()
-    records, skipped = scan_files(cfg.docs_dir)
+    records, skipped = _scan_all(cfg)
     stats.skipped = list(skipped)
 
     console.print(f"Chunking [bold]{len(records)}[/] file(s) in {cfg.docs_dir}…")
@@ -257,7 +274,7 @@ def refresh(cfg: Config, console: Console | None = None) -> IndexStats:
         )
 
     old_manifest = _load_manifest(cfg)
-    records, skipped = scan_files(cfg.docs_dir)
+    records, skipped = _scan_all(cfg)
     new_by_path = {rec.rel_path: rec for rec in records}
 
     stats = IndexStats()

@@ -43,6 +43,12 @@ contains the answer (`file.pdf › p. 3`). Scanned/image-only PDFs are skipped
 with a warning (no OCR). Images are not vectorized yet. Files > 2 MB are
 skipped with a warning.
 
+Additional folders can be indexed with `FLASH_RAG_WORKSPACE_DIRS` (see
+Configuration) — useful for turning other projects' docs, notes or code
+comments into searchable knowledge. Junk directories (`node_modules`,
+`__pycache__`, `dist`, `build`, caches, …) and hidden files are ignored
+automatically.
+
 ## How it works
 
 ```
@@ -83,6 +89,7 @@ Real environment variables always take precedence over `.env`.
 | `FLASH_RAG_MODEL` | `nomic-ai/nomic-embed-text-v1.5` | fastembed model id |
 | `FLASH_RAG_DOCS_DIR` | `<root>/documents` | documents to index |
 | `FLASH_RAG_DATA_DIR` | `<root>/.data` | where the index lives |
+| `FLASH_RAG_WORKSPACE_DIRS` | (none) | comma-separated extra dirs to index (recursively), e.g. `path/demo,path2/demo2` — junk dirs like `node_modules`, `__pycache__`, `dist` are ignored |
 | `FLASH_RAG_PROVIDERS` | (CPU) | comma-separated ONNX Runtime providers, e.g. `CoreMLExecutionProvider,CPUExecutionProvider` on Apple Silicon to use the GPU |
 
 Embedding model files are cached in `<FLASH_RAG_DATA_DIR>/models` (by default,

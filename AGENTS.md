@@ -40,6 +40,8 @@ uv run search "your question or topic" --json
   `.env` (local config). Only `documents/` and code are source.
 - Settings live in `.env` (template: `.env.example`) — model, paths, and
   ONNX providers; real env vars take precedence.
+- `FLASH_RAG_WORKSPACE_DIRS` (comma-separated) adds extra folders to the
+  index; junk dirs (`node_modules`, `__pycache__`, `dist`, …) are ignored.
 - If you change `FLASH_RAG_MODEL`, rebuild with `uv run db-init --force`
   (different model = different vector space).
 

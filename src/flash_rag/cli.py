@@ -225,6 +225,8 @@ def _status_cmd() -> None:
     table.add_row("created", str(meta.get("created", "?")))
     table.add_row("updated", str(meta.get("updated", "?")))
     table.add_row("data dir", str(cfg.data_dir))
+    if cfg.workspace_dirs:
+        table.add_row("workspace dirs", ", ".join(str(ws) for ws in cfg.workspace_dirs))
     console.print(table)
 
 

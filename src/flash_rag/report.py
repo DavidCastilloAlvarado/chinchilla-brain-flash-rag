@@ -7,6 +7,7 @@ from pathlib import Path
 from .config import SUPPORTED_SUFFIXES, Config
 from .index import NotInitialized
 from .pdf import extract_pdf_pages
+from .scanner import JUNK_DIR_NAMES
 from .store import Store
 
 
@@ -59,14 +60,27 @@ def build_report(cfg: Config) -> dict:
     # Files on disk that are NOT in the index (unsupported types, empty, oversized).
     indexed_paths = set(by_file)
     unindexed: list[dict] = []
-    if cfg.docs_dir.is_dir():
-        for path in sorted(cfg.docs_dir.rglob("*")):
+    roots: list[tuple[Path, bool]] = [(cfg.docs_dir, False)]
+    roots.extend((ws, True) for ws in cfg.workspace_dirs if ws.is_dir())
+    for root, is_ws in roots:
+        if not root.is_dir():
+            continue
+        for path in sorted(root.rglob("*")):
             if not path.is_file():
                 continue
-            rel = path.relative_to(cfg.docs_dir)
-            if any(part.startswith(".") for part in rel.parts):
+            rel_parts = path.relative_to(root).parts
+            if any(part.startswith(".") for part in rel_parts):
                 continue
-            if rel.as_posix() in indexed_paths:
+            if is_ws and any(part in JUNK_DIR_NAMES for part in rel_parts):
+                continue
+            if is_ws:
+                try:
+                    rel_str = path.relative_to(cfg.root).as_posix()
+                except ValueError:
+                    rel_str = str(path)
+            else:
+                rel_str = path.relative_to(root).as_posix()
+            if rel_str in indexed_paths:
                 continue
             if path.suffix.lower() == ".pdf":
                 # Probe the actual reason (cheap: only unindexed files are checked).
@@ -76,7 +90,7 @@ def build_report(cfg: Config) -> dict:
                 reason = f"unsupported suffix {path.suffix.lower() or '(none)'}"
             else:
                 reason = "skipped (empty, oversized, or undecodable)"
-            unindexed.append({"file": rel.as_posix(), "reason": reason})
+            unindexed.append({"file": rel_str, "reason": reason})
 
     return {
         "model": meta.get("model"),
