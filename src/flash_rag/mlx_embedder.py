@@ -57,7 +57,7 @@ class MlxEmbedder:
     @property
     def dim(self) -> int:
         if self._dim is None:
-            self._dim = len(self.embed(["dim probe"]))[0]
+            self._dim = len(self.embed(["dim probe"])[0])
         return self._dim
 
     def embed(self, texts: list[str]) -> list[list[float]]:
