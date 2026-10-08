@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import time
 from dataclasses import dataclass, field
 
 from rich.console import Console
@@ -61,10 +60,11 @@ def _load_manifest(cfg: Config) -> dict:
 
 
 def _save_manifest(cfg: Config, manifest: dict) -> None:
+    """Atomically write the manifest (tmp + rename) — it is the resume checkpoint."""
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
-    cfg.manifest_path.write_text(
-        json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
-    )
+    tmp = cfg.manifest_path.with_name(cfg.manifest_path.name + ".tmp")
+    tmp.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    tmp.replace(cfg.manifest_path)
 
 
 def _scan_all(cfg: Config) -> tuple[list[FileRecord], list[str]]:
@@ -135,36 +135,6 @@ def _pdf_rows(rec: FileRecord, pages: dict[int, str]) -> list[dict]:
     return rows
 
 
-def _embed_texts(
-    cfg: Config, texts: list[str], console: Console
-) -> tuple[list[list[float]], int]:
-    """Embed *texts* in batches, loading the model once (with a note).
-
-    Returns ``(vectors, dim)``.
-    """
-    console.print(
-        f"Loading embedding model [bold]{cfg.model}[/] "
-        "(downloaded from Hugging Face on first use, then cached)…"
-    )
-    embedder = make_embedder(cfg)
-    dim = embedder.dim
-    vectors: list[list[float]] = []
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TextColumn("{task.completed}/{task.total} batches"),
-        TimeElapsedColumn(),
-        console=console,
-        transient=True,
-    ) as progress:
-        task = progress.add_task("embedding", total=(len(texts) + EMBED_BATCH_SIZE - 1) // EMBED_BATCH_SIZE)
-        for i in range(0, len(texts), EMBED_BATCH_SIZE):
-            vectors.extend(embedder.embed(texts[i : i + EMBED_BATCH_SIZE]))
-            progress.advance(task)
-    return vectors, dim
-
-
 def _prepare(
     cfg: Config, records: list[FileRecord], console: Console
 ) -> tuple[list[tuple[FileRecord, list[dict], list[str]]], list[str]]:
@@ -201,19 +171,80 @@ def _prepare(
     return prepared, skipped
 
 
-def _attach_vectors(
+def _group_prepared(
     prepared: list[tuple[FileRecord, list[dict], list[str]]],
-    vectors: list[list[float]],
-) -> list[dict]:
-    out: list[dict] = []
-    vi = 0
-    for _rec, rows, _texts in prepared:
-        for r in rows:
-            r = dict(r)
-            r["vector"] = vectors[vi]
-            vi += 1
-            out.append(r)
-    return out
+) -> list[list[tuple[FileRecord, list[dict], list[str]]]]:
+    """Group files so each group's total chunk count is <= EMBED_BATCH_SIZE.
+
+    Keeps embedding batches full (many small files -> one batch) while
+    bounding rework after an interruption to at most one group.
+    """
+    groups: list[list[tuple[FileRecord, list[dict], list[str]]]] = []
+    cur: list[tuple[FileRecord, list[dict], list[str]]] = []
+    count = 0
+    for item in prepared:
+        n = len(item[1])
+        if cur and count + n > EMBED_BATCH_SIZE:
+            groups.append(cur)
+            cur, count = [], 0
+        cur.append(item)
+        count += n
+    if cur:
+        groups.append(cur)
+    return groups
+
+
+def _commit_groups(
+    cfg: Config,
+    store: Store,
+    prepared: list[tuple[FileRecord, list[dict], list[str]]],
+    manifest: dict,
+    dim: int | None,
+    console: Console,
+    stats: IndexStats,
+) -> int:
+    """Embed and commit prepared files group by group, checkpointing the manifest.
+
+    Per group: embed -> per-file delete+add -> manifest update -> atomic manifest
+    save. An interrupted run resumes from the manifest: committed files are
+    skipped, and at most one group's worth of embedding is redone.
+    """
+    console.print(
+        f"Loading embedding model [bold]{cfg.model}[/] "
+        "(downloaded from Hugging Face on first use, then cached)…"
+    )
+    embedder = make_embedder(cfg)
+    dim = dim or embedder.dim
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("{task.completed}/{task.total} files"),
+        TimeElapsedColumn(),
+        console=console,
+        transient=True,
+    ) as progress:
+        task = progress.add_task("indexing", total=len(prepared))
+        for group in _group_prepared(prepared):
+            texts = [t for _rec, _rows, ts in group for t in ts]
+            vectors: list[list[float]] = []
+            for i in range(0, len(texts), EMBED_BATCH_SIZE):
+                vectors.extend(embedder.embed(texts[i : i + EMBED_BATCH_SIZE]))
+            vi = 0
+            for rec, rows, _ts in group:
+                file_rows = []
+                for r in rows:
+                    r = dict(r)
+                    r["vector"] = vectors[vi]
+                    vi += 1
+                    file_rows.append(r)
+                store.delete_file(rec.rel_path)  # idempotent: drops stale/dup rows
+                store.add(file_rows, dim)
+                manifest[rec.rel_path] = _manifest_entry(rec, len(file_rows))
+                stats.chunks_added += len(file_rows)
+                progress.advance(task)
+            _save_manifest(cfg, manifest)  # checkpoint: committed files survive a crash
+    return dim
 
 
 def _manifest_entry(rec: FileRecord, n_chunks: int) -> dict:
@@ -231,10 +262,31 @@ def _manifest_entry(rec: FileRecord, n_chunks: int) -> dict:
 
 
 def build(cfg: Config, force: bool = False, console: Console | None = None) -> IndexStats:
-    """Map, chunk and embed every supported file (first-time setup)."""
+    """Map, chunk, embed and commit every supported file (first-time setup).
+
+    Checkpointed per file group: as soon as a group is embedded it is written to
+    the store and registered in the manifest, so an interrupted run can be
+    resumed by re-running db-init (or db-refresh) without re-embedding finished
+    files.
+    """
     console = console or Console()
     store = Store(cfg.data_dir, cfg.model)
     if store.exists() and not force:
+        manifest = _load_manifest(cfg)
+        if manifest:
+            records, _ = _scan_all(cfg)
+            on_disk = {rec.rel_path: rec.sha256 for rec in records}
+            pending = [
+                p for p, h in on_disk.items() if manifest.get(p, {}).get("sha256") != h
+            ]
+            stale = [p for p in manifest if p not in on_disk]
+            if not pending and not stale:
+                raise AlreadyInitialized()
+            console.print(
+                "[yellow]Index exists but is incomplete — resuming: "
+                "already-indexed files are skipped.[/]"
+            )
+            return refresh(cfg, console=console)
         raise AlreadyInitialized()
     if store.exists():
         store.drop()
@@ -246,22 +298,26 @@ def build(cfg: Config, force: bool = False, console: Console | None = None) -> I
     console.print(f"Chunking [bold]{len(records)}[/] file(s) in {cfg.docs_dir}…")
     prepared, skipped2 = _prepare(cfg, records, console)
     stats.skipped.extend(skipped2)
-    all_texts = [t for _rec, _rows, texts in prepared for t in texts]
-    vectors, dim = _embed_texts(cfg, all_texts, console)
-    rows = _attach_vectors(prepared, vectors)
+    stats.files_added = len(prepared)
 
-    store.create(rows, dim)
-    manifest = {rec.rel_path: _manifest_entry(rec, len(rows_)) for rec, rows_, _t in prepared}
+    manifest: dict = {}
+    if prepared:
+        dim = _commit_groups(cfg, store, prepared, manifest, None, console, stats)
+    else:
+        dim = make_embedder(cfg).dim
+        store.create([], dim)
     _save_manifest(cfg, manifest)
     store.write_meta(dim, created=True)
-
-    stats.files_added = len(prepared)
-    stats.chunks_added = len(rows)
     return stats
 
 
 def refresh(cfg: Config, console: Console | None = None) -> IndexStats:
-    """Incrementally index new/changed files and drop deleted ones."""
+    """Incrementally index new/changed files and drop deleted ones.
+
+    Checkpointed per file group (see ``_commit_groups``): an interrupted run can
+    be resumed by re-running db-refresh — committed files are skipped and at most
+    one group's worth of embedding is redone.
+    """
     console = console or Console()
     store = Store(cfg.data_dir, cfg.model)
     if not store.exists():
@@ -292,45 +348,31 @@ def refresh(cfg: Config, console: Console | None = None) -> IndexStats:
         else:
             stats.files_unchanged += 1
 
-    for path, old in old_manifest.items():
+    for path, old in list(old_manifest.items()):
         if path not in new_by_path:
             store.delete_file(path)
+            old_manifest.pop(path, None)
             stats.files_removed += 1
             stats.chunks_removed += int(old.get("chunks", 0))
+    if stats.files_removed:
+        _save_manifest(cfg, old_manifest)  # checkpoint deletions too
 
     if to_process:
         console.print(f"Chunking [bold]{len(to_process)}[/] changed file(s)…")
         prepared, skipped2 = _prepare(cfg, to_process, console)
         stats.skipped.extend(skipped2)
-        all_texts = [t for _rec, _rows, texts in prepared for t in texts]
-        vectors, dim = _embed_texts(cfg, all_texts, console)
-        rows = _attach_vectors(prepared, vectors)
-
-        by_file: dict[str, list[dict]] = {}
-        for row in rows:
-            by_file.setdefault(row["file_path"], []).append(row)
+        prepared_paths = {rec.rel_path for rec, _rows, _texts in prepared}
         for rec in to_process:
-            store.delete_file(rec.rel_path)  # drop stale chunks first
-            file_rows = by_file.get(rec.rel_path, [])
-            if file_rows:
-                store.add(file_rows, dim)
-                old_manifest[rec.rel_path] = _manifest_entry(rec, len(file_rows))
-                stats.chunks_added += len(file_rows)
-            else:
-                old_manifest.pop(rec.rel_path, None)
-
-    for path in list(old_manifest):
-        if path not in new_by_path:
-            old_manifest.pop(path, None)
-    _save_manifest(cfg, old_manifest)
-    dim = _dim_of(rows) if to_process else (meta or {}).get("dim", 0)
-    store.write_meta(dim, created=False)
+            if rec.rel_path not in prepared_paths:
+                old_manifest.pop(rec.rel_path, None)  # not indexable — forget it
+        if prepared:
+            dim = _commit_groups(
+                cfg, store, prepared, old_manifest, (meta or {}).get("dim"), console, stats
+            )
+        else:
+            dim = (meta or {}).get("dim", 0)
+        _save_manifest(cfg, old_manifest)
+        store.write_meta(dim, created=False)
+    else:
+        store.write_meta((meta or {}).get("dim", 0), created=False)
     return stats
-
-
-def _dim_of(rows: list[dict] | None) -> int:
-    if rows:
-        v = rows[0].get("vector")
-        if v:
-            return len(v)
-    return 0

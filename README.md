@@ -72,6 +72,11 @@ documents/  ──►  scan (SHA-256)  ──►  chunk (markdown-aware, ~512 to
 - **Incremental refresh.** `.data/manifest.json` maps each file to its
   SHA-256; `db-refresh` re-embeds only new/changed files and deletes chunks
   of removed files.
+- **Crash-safe, resumable indexing.** Files are committed to the store and
+  registered in the manifest as soon as each batch is embedded (atomic
+  manifest writes). If `db-init` or `db-refresh` is interrupted (Ctrl+C,
+  crash, power loss), just re-run it: already-indexed files are skipped and
+  at most one batch's worth of embedding is redone — no duplicates.
 
 ## Configuration (env vars / `.env`)
 

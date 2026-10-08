@@ -33,6 +33,8 @@ uv run search "your question or topic" --json
 
 - After **adding, editing or deleting** files in `documents/`, run:
   `uv run db-refresh` (hash-based; only changed files are re-embedded).
+  Indexing is checkpointed per file batch: if a run is interrupted, re-run
+  the same command — finished files are skipped, nothing is lost.
 - `uv run db-status` shows model, file/chunk counts and last update.
 - `uv run db-report` (or `--json`) gives a full inventory: totals, per-directory
   and per-file chunk/token counts, and files that exist but are not indexed.
