@@ -132,9 +132,14 @@ class Attention(nn.Module):
         self.traditional = bool(config.rotary_emb_interleaved)
 
     def _rope(self, x):
-        # x: (B, H, L, D)
+        # x: (B, H, L, D). offset is required (no default) in current mlx.
         return mx.fast.rope(
-            x, self.rotary_dim, traditional=self.traditional, base=self.base, scale=self.scale
+            x,
+            self.rotary_dim,
+            offset=0,
+            traditional=self.traditional,
+            base=self.base,
+            scale=self.scale,
         )
 
     def __call__(self, x, mask=None):
