@@ -170,7 +170,7 @@ class MLP(nn.Module):
         self.fc2 = nn.Linear(config.n_inner, config.n_embd, bias=config.mlp_fc2_bias)
 
     def __call__(self, x):
-        return self.fc2(self.fc11(x) * mx.nn.silu(self.fc12(x)))
+        return self.fc2(self.fc11(x) * nn.silu(self.fc12(x)))
 
 
 class TransformerBlock(nn.Module):
