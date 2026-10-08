@@ -21,6 +21,25 @@ uv run search "your question or topic" --json
 - After a good hit, open the referenced file (e.g. with your read tool) to
   get the surrounding context beyond the chunk.
 
+### Freshness check (once per session, before the first search)
+
+Run `uv run db-status` and read the `updated` timestamp. If it is **older
+than 3 days**, run `uv run db-refresh` first, then search. Never answer
+from an index that is more than 3 days stale without refreshing it.
+
+## Citations (mandatory)
+
+Every fact or claim drawn from the knowledge base **must** be accompanied by
+a file citation — the `file` path from the search result that supports it
+(e.g. `documents/guides/getting-started.md`).
+
+- The number of citations matches the number of distinct source files the
+  answer draws from: one citation per file — no more, no less.
+- A claim with no supporting search result must be labeled as such
+  (e.g. "inference" / "not in the KB") — never presented as a KB fact.
+- When a chunk is cited, prefer opening the file and reading the surrounding
+  context before quoting it.
+
 ## Exit codes
 
 | Code | Meaning | Action |
