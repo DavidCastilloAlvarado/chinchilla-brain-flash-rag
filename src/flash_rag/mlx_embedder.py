@@ -29,7 +29,7 @@ class MlxEmbedder:
     def __init__(self, model_name: str, *, cache_dir: Path):
         try:
             import mlx.core as mx
-            from mlx_embeddings.utils import load
+            from mlx_embeddings.utils import get_model_path, load_config, load
         except ImportError as exc:
             raise RuntimeError(
                 "The MLX backend requires Apple Silicon and the 'mlx' extra. "
@@ -39,6 +39,15 @@ class MlxEmbedder:
         # Route HF downloads under our data dir when the user hasn't set a
         # cache location themselves.
         os.environ.setdefault("HF_HUB_CACHE", str(cache_dir / "hf-hub"))
+
+        # mlx-embeddings has no nomic_bert module; register our vendored port
+        # so the loader can resolve model_type "nomic_bert".
+        model_path = get_model_path(model_name)
+        model_type = str(load_config(model_path).get("model_type", "")).replace("-", "_")
+        if model_type == "nomic_bert":
+            from .nomic_bert import register_nomic_bert
+
+            register_nomic_bert()
 
         self.model_name = model_name
         self._mx = mx

@@ -58,7 +58,10 @@ uv run db-init --force                   # rebuild once (vectors differ slightly
 ```
 
 MLX loads the same Hugging Face weights directly (no ONNX export), so the
-same model ids work (`nomic-ai/nomic-embed-text-v1.5`, …).
+same model ids work (`nomic-ai/nomic-embed-text-v1.5`, …). Note that
+`mlx-embeddings` doesn't ship a NomicBert implementation, so flash-rag
+bundles a small port of it (`src/flash_rag/nomic_bert.py`) — nomic models
+just work.
 
 > ⚠️ Why not CoreML? The ONNX Runtime CoreML provider only converts part of
 > the graph (e.g. ~40% of nodes for nomic-embed); the rest falls back to the
