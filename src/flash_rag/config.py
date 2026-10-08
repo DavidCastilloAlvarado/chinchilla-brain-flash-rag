@@ -30,9 +30,9 @@ CHUNK_OVERLAP_TOKENS = 64
 # Files above this size are skipped (with a warning) to keep indexing fast.
 MAX_FILE_BYTES = 2 * 1024 * 1024  # 2 MB
 
-# Only these suffixes are vectorized today. PDFs/images may sit in documents/
-# but are ignored until a parser is added.
-SUPPORTED_SUFFIXES = {".md", ".markdown", ".txt"}
+# Suffixes that are vectorized. PDFs must contain extractable text (no OCR);
+# image-only PDFs are skipped with a warning.
+SUPPORTED_SUFFIXES = {".md", ".markdown", ".txt", ".pdf"}
 
 # Embedding batch size (fastembed batches internally; this drives progress).
 EMBED_BATCH_SIZE = 64

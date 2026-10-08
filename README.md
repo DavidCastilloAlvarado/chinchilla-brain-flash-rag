@@ -37,9 +37,11 @@ and exits with code **2** (so agents can detect and react).
 
 ## What gets indexed
 
-`.md`, `.markdown`, `.txt` at any depth under `documents/`. PDFs and images
-may live in `documents/` but are **not** vectorized yet (parsers on the
-roadmap). Files > 2 MB are skipped with a warning.
+`.md`, `.markdown`, `.txt` at any depth under `documents/`, plus **text-based
+PDFs** — indexed page by page, so search results tell you exactly which page
+contains the answer (`file.pdf › p. 3`). Scanned/image-only PDFs are skipped
+with a warning (no OCR). Images are not vectorized yet. Files > 2 MB are
+skipped with a warning.
 
 ## How it works
 

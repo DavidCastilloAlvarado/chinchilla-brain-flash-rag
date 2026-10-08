@@ -46,6 +46,6 @@ vectors, embeddings, manifests — is git-ignored and rebuilt with
 
 ## Roadmap
 
-- PDF + image ingestion (parsers to be added; files already allowed in `documents/`)
+- Image ingestion + OCR for scanned PDFs (text-based PDFs are already indexed page by page)
 - Optional hybrid search (BM25/FTS5 + vector, RRF fusion)
 - Optional reranker (cross-encoder) for top-k precision

@@ -8,7 +8,8 @@ Everything here is committed; the vector index is not.
 | Type | Status |
 |---|---|
 | `.md`, `.markdown`, `.txt` (any depth, any number of folders) | ✅ vectorized |
-| `.pdf`, images, other binaries | ⏸️ allowed to live here, **not** vectorized yet |
+| `.pdf` (text-based) | ✅ indexed page by page — results include the page number |
+| `.pdf` (scanned/image-only), images | ⏸️ allowed to live here, **not** vectorized (no OCR yet) |
 
 ## Conventions
 

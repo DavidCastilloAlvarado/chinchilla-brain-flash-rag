@@ -15,9 +15,10 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from .chunker import chunk_file
+from .chunker import chunk_file, chunk_text
 from .config import EMBED_BATCH_SIZE, Config
 from .embedder import Embedder
+from .pdf import extract_pdf_pages
 from .scanner import FileRecord, scan_files
 from .store import Store
 
@@ -81,6 +82,7 @@ def _chunk_rows(rec: FileRecord, text: str) -> list[dict]:
                 "id": f"{rec.rel_path}#{c.index}",
                 "file_path": rec.rel_path,
                 "section": c.section,
+                "page": -1,
                 "text": c.text,
                 "start": c.start,
                 "end": c.end,
@@ -89,6 +91,30 @@ def _chunk_rows(rec: FileRecord, text: str) -> list[dict]:
                 "mtime": rec.mtime,
             }
         )
+    return rows
+
+
+def _pdf_rows(rec: FileRecord, pages: dict[int, str]) -> list[dict]:
+    """One or more chunks per PDF page (long pages are split), all tagged with the page number."""
+    rows = []
+    idx = 0
+    for page_num in sorted(pages):
+        for c in chunk_text(pages[page_num]):
+            rows.append(
+                {
+                    "id": f"{rec.rel_path}#{idx}",
+                    "file_path": rec.rel_path,
+                    "section": "",
+                    "page": page_num,
+                    "text": c.text,
+                    "start": c.start,
+                    "end": c.end,
+                    "tokens": c.tokens,
+                    "file_hash": rec.sha256,
+                    "mtime": rec.mtime,
+                }
+            )
+            idx += 1
     return rows
 
 
@@ -129,18 +155,31 @@ def _prepare(
     prepared: list[tuple[FileRecord, list[dict], list[str]]] = []
     skipped: list[str] = []
     for rec in records:
-        text = _read_file(rec)
-        if text is None:
-            skipped.append(f"{rec.rel_path}: could not decode as UTF-8")
-            continue
-        rows = _chunk_rows(rec, text)
-        if not rows:
-            skipped.append(f"{rec.rel_path}: no chunkable content")
-            continue
-        texts = [
-            f"{rec.rel_path} > {r['section']}\n{r['text']}" if r["section"] else r["text"]
-            for r in rows
-        ]
+        if rec.rel_path.lower().endswith(".pdf"):
+            extraction = extract_pdf_pages(rec.abs_path)
+            skipped.extend(f"{rec.rel_path}: {s}" for s in extraction.skipped)
+            if not extraction.pages:
+                continue
+            rows = _pdf_rows(rec, extraction.pages)
+            if not rows:
+                skipped.append(f"{rec.rel_path}: no chunkable content")
+                continue
+            texts = [
+                f"{rec.rel_path} (page {r['page']})\n{r['text']}" for r in rows
+            ]
+        else:
+            text = _read_file(rec)
+            if text is None:
+                skipped.append(f"{rec.rel_path}: could not decode as UTF-8")
+                continue
+            rows = _chunk_rows(rec, text)
+            if not rows:
+                skipped.append(f"{rec.rel_path}: no chunkable content")
+                continue
+            texts = [
+                f"{rec.rel_path} > {r['section']}\n{r['text']}" if r["section"] else r["text"]
+                for r in rows
+            ]
         prepared.append((rec, rows, texts))
     return prepared, skipped
 

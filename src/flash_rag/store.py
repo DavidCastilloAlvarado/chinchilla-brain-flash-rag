@@ -24,6 +24,7 @@ def make_schema(dim: int) -> pa.Schema:
             pa.field("id", pa.string()),
             pa.field("file_path", pa.string()),
             pa.field("section", pa.string()),
+            pa.field("page", pa.int32()),  # 1-based PDF page, -1 for non-PDF files
             pa.field("text", pa.string()),
             pa.field("start", pa.int64()),
             pa.field("end", pa.int64()),

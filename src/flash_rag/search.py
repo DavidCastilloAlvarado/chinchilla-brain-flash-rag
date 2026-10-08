@@ -26,12 +26,14 @@ def run_search(
     for i, row in enumerate(hits, 1):
         distance = row.get("_distance")
         score = 1.0 - float(distance) if distance is not None else 0.0
+        page = row.get("page", -1)
         results.append(
             {
                 "rank": i,
                 "score": round(max(0.0, min(1.0, score)), 4),
                 "file": row["file_path"],
                 "section": row.get("section", ""),
+                "page": page if page is not None and page >= 0 else None,
                 "start": row.get("start"),
                 "end": row.get("end"),
                 "text": row["text"],

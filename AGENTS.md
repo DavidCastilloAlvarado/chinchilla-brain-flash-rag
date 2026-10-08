@@ -15,8 +15,9 @@ uv run search "your question or topic" --json
 - Use `-k 10` (or higher) when you need broader context; `--full` for the
   complete chunk text; `--path <prefix>` to restrict to a folder.
 - Result fields: `file` (path under `documents/`), `section` (heading
-  breadcrumb), `score` (cosine similarity 0–1), `start`/`end` (char offsets
-  in the source file — read that file for the full context), `text`.
+  breadcrumb), `page` (PDF page, 1-based; `null` for .md/.txt), `score`
+  (cosine similarity 0–1), `start`/`end` (char offsets in the source file —
+  read that file for the full context), `text`.
 - After a good hit, open the referenced file (e.g. with your read tool) to
   get the surrounding context beyond the chunk.
 
@@ -47,4 +48,6 @@ uv run search "your question or topic" --json
 - New documents go in `documents/<topic>/` as `.md` (preferred) or `.txt`.
 - Use markdown headings — the chunker keeps heading breadcrumbs, which
   improves retrieval quality.
-- PDFs and images may be placed in `documents/` but are not vectorized yet.
+- PDFs are indexed page by page (text-based only) — results include a `page`
+  field (1-based; `null` for .md/.txt). Scanned/image-only PDFs are skipped.
+  Images are not vectorized yet.

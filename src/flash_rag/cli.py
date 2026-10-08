@@ -50,7 +50,7 @@ def _print_not_initialized() -> None:
             "[bold yellow]The knowledge base is not initialized yet.[/]\n\n"
             "Run:\n"
             "  [bold]uv run db-init[/]\n\n"
-            "This scans [bold]documents/[/], chunks and embeds every .md/.txt file "
+            "This scans [bold]documents/[/], chunks and embeds every .md/.txt/.pdf file "
             "locally (one-time; the embedding model is downloaded from Hugging "
             "Face on first use).",
             title="flash-rag",
@@ -69,7 +69,9 @@ def _print_results(data: dict, full: bool) -> None:
         console.print("[yellow]No results.[/]")
         return
     for r in data["results"]:
-        loc = r["file"] + (f"  ›  {r['section']}" if r["section"] else "")
+        page = r.get("page")
+        loc = r["file"] + (f" › p. {page}" if page else "")
+        loc += f"  ›  {r['section']}" if r["section"] else ""
         console.print(f"[bold]{r['rank']}.[/] [dim]{r['score']:.3f}[/] [bold cyan]{loc}[/]")
         body = r["text"] if full else _snippet(r["text"])
         console.print("   " + body.replace("\n", "\n   "))

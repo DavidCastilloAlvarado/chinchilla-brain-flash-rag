@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from .config import SUPPORTED_SUFFIXES, Config
-from .index import NotInitialized, _load_manifest
-from .scanner import scan_files
+from .index import NotInitialized
+from .pdf import extract_pdf_pages
 from .store import Store
 
 
@@ -68,10 +68,14 @@ def build_report(cfg: Config) -> dict:
                 continue
             if rel.as_posix() in indexed_paths:
                 continue
-            if path.suffix.lower() not in SUPPORTED_SUFFIXES:
+            if path.suffix.lower() == ".pdf":
+                # Probe the actual reason (cheap: only unindexed files are checked).
+                ex = extract_pdf_pages(path)
+                reason = ex.skipped[0] if ex.skipped else "no extractable text"
+            elif path.suffix.lower() not in SUPPORTED_SUFFIXES:
                 reason = f"unsupported suffix {path.suffix.lower() or '(none)'}"
             else:
-                reason = "skipped (empty or oversized)"
+                reason = "skipped (empty, oversized, or undecodable)"
             unindexed.append({"file": rel.as_posix(), "reason": reason})
 
     return {

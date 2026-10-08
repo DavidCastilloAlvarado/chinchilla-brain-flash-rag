@@ -28,6 +28,7 @@ uv run search "query" [options]
       "score": 0.7312,
       "file": "reference/architecture.md",
       "section": "Architecture > Chunking",
+      "page": null,
       "start": 1204,
       "end": 2871,
       "text": "..."
@@ -37,7 +38,9 @@ uv run search "query" [options]
 ```
 
 `score` is cosine similarity in [0, 1]. `start`/`end` are character offsets in
-the source file — open the file and jump straight to the passage.
+the source file — open the file and jump straight to the passage. For PDFs,
+`page` is the 1-based page number (chunks are per-page, so the page localizes
+the hit); `section` is empty and `page` is `null` for `.md`/`.txt` files.
 
 ### Exit codes
 
@@ -90,5 +93,5 @@ Full inventory of the knowledge base:
 - totals: indexed files, chunks, total tokens, index size on disk
 - per-directory breakdown (files / chunks / tokens)
 - per-file breakdown, sorted by token count
-- files that exist in `documents/` but are **not** indexed (unsupported
-  suffixes like `.pdf`/images, empty or oversized files)
+- files that exist in `documents/` but are **not** indexed (scanned/image-only
+  PDFs, images, empty or oversized files)
