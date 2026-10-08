@@ -126,9 +126,10 @@ class Attention(nn.Module):
         self.Wqkv = nn.Linear(config.n_embd, 3 * config.n_embd, bias=config.qkv_proj_bias)
         self.out_proj = nn.Linear(config.n_embd, config.n_embd, bias=config.qkv_proj_bias)
         self.rotary_dim = int(self.head_dim * config.rotary_emb_fraction)
-        self.base = config.rotary_emb_base
-        self.scale = config.rotary_scaling_factor or 1.0
-        self.traditional = config.rotary_emb_interleaved
+        # mx.fast.rope strictly requires float base/scale — JSON config gives ints.
+        self.base = float(config.rotary_emb_base)
+        self.scale = float(config.rotary_scaling_factor or 1.0)
+        self.traditional = bool(config.rotary_emb_interleaved)
 
     def _rope(self, x):
         # x: (B, H, L, D)
