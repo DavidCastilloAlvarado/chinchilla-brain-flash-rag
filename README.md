@@ -26,7 +26,7 @@ uv run search "chunking strategy"
 
 | Command | What it does |
 |---|---|
-| `uv run search "query"` | Hybrid search (BM25 full-text + vector, fused) over the index. Flags: `-k/--top-k`, `--json`, `--path PREFIX`, `--full`, `--vector-only` (disable the BM25 leg) |
+| `uv run search "query"` | Hybrid search (BM25 full-text + vector, fused) over the index. Flags: `-k/--top-k`, `--json`, `--path PREFIX`, `--full`, `--vector-only` (disable the BM25 leg). Runs the [auto-refresh check](#keeping-the-index-fresh) first |
 | `uv run db-init` | First-time build: map, chunk and embed all supported files. `--force` rebuilds from scratch |
 | `uv run db-refresh` | Incremental sync: hash-diff files, embed only what's new/changed, drop deleted |
 | `uv run db-status` | Model, file/chunk counts, timestamps |
@@ -78,6 +78,27 @@ documents/  ──►  scan (SHA-256)  ──►  chunk (markdown-aware, ~512 to
   crash, power loss), just re-run it: already-indexed files are skipped and
   at most one batch's worth of embedding is redone — no duplicates.
 
+## Keeping the index fresh
+
+`search` is the hottest command, so it carries a freshness guarantee.
+Before searching, **at most once every 24 h** (state in
+`.data/freshness_state.json`), it checks the index's `updated` timestamp.
+When the index is older than **7 days**, it runs the same incremental
+refresh as `db-refresh` and only then proceeds with the search. So a
+`search` can never silently return results from an index that has not been
+refreshed in over a week.
+
+- The check runs at most once per day even if you search many times; the
+  next check happens after the interval elapses.
+- A refresh that fails fails the search (exit 1) with an actionable message
+  rather than serving a stale index; the failed check is marked done so it
+  is not retried on every query that day.
+- Both thresholds are tunable via env vars (see Configuration):
+  `FLASH_RAG_AUTO_REFRESH_MAX_AGE_DAYS` (default `7`) and
+  `FLASH_RAG_AUTO_REFRESH_CHECK_INTERVAL_HOURS` (default `24`).
+- You can also refresh explicitly anytime with `uv run db-refresh`, or
+  check the 3-day freshness rule with `uv run check_freshness_and_refresh`.
+
 ## Configuration (env vars / `.env`)
 
 All settings come from environment variables. To avoid `export`-ing them,
@@ -97,6 +118,8 @@ Real environment variables always take precedence over `.env`.
 | `FLASH_RAG_WORKSPACE_DIRS` | (none) | comma-separated extra dirs to index (recursively), e.g. `path/demo,path2/demo2` — junk dirs like `node_modules`, `__pycache__`, `dist` are ignored |
 | `FLASH_RAG_BACKEND` | `onnx` | embedding backend: `onnx` (default, cross-platform) or `mlx` (Apple Silicon, 100% GPU/ANE — install with `uv sync --extra mlx`) |
 | `FLASH_RAG_PROVIDERS` | (CPU) | comma-separated ONNX Runtime providers, e.g. `CoreMLExecutionProvider,CPUExecutionProvider` on Apple Silicon (MLX backend is preferred there) |
+| `FLASH_RAG_AUTO_REFRESH_MAX_AGE_DAYS` | `7` | `search` auto-refreshes the index when its `updated` timestamp is older than this (days) |
+| `FLASH_RAG_AUTO_REFRESH_CHECK_INTERVAL_HOURS` | `24` | how often `search` re-checks index freshness (rolling window, in hours) |
 
 Embedding model files are cached in `<FLASH_RAG_DATA_DIR>/models` (by default,
 `.data/models`) and reused by both indexing and search.

@@ -60,6 +60,14 @@ refreshes automatically when stale; it responds `db fresh: true/false`.
 Never answer from an index that is more than 3 days stale without
 refreshing it.
 
+`search` is a built-in safety net: it checks the index age at most once per
+day (state in `.data/freshness_state.json`) and runs `db-refresh` itself
+before the search when the index's last update is older than 7 days
+(configurable via `FLASH_RAG_AUTO_REFRESH_MAX_AGE_DAYS`). A search therefore
+never silently serves an index that old. Note the check output (and any
+auto-refresh progress) is printed alongside the results — with `--json` it
+goes to stderr, so stdout stays pure JSON.
+
 ## Citations (mandatory)
 
 Every fact or claim **must** be traceable to the source it came from,

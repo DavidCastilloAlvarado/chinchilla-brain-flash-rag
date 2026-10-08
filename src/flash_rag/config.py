@@ -9,6 +9,8 @@ the ``.env`` file.
 - ``FLASH_RAG_DOCS_DIR``  documents directory (default ``<root>/documents``)
 - ``FLASH_RAG_DATA_DIR``  data directory (default ``<root>/.data``)
 - ``FLASH_RAG_PROVIDERS`` comma-separated ONNX Runtime providers (GPU on Apple Silicon)
+- ``FLASH_RAG_AUTO_REFRESH_MAX_AGE_DAYS``       max index age before ``search`` auto-refreshes (default 7)
+- ``FLASH_RAG_AUTO_REFRESH_CHECK_INTERVAL_HOURS`` min hours between pre-search freshness checks (default 24)
 """
 
 from __future__ import annotations
@@ -42,6 +44,13 @@ SUPPORTED_SUFFIXES = {".md", ".markdown", ".txt", ".pdf"}
 # Embedding batch size (fastembed batches internally; this drives progress).
 EMBED_BATCH_SIZE = 64
 
+# Auto-refresh before search: when the index's ``updated`` timestamp is older
+# than this, ``search`` runs an incremental refresh first. The freshness check
+# itself runs at most once per CHECK_INTERVAL_HOURS (state in
+# ``<data_dir>/freshness_state.json``).
+DEFAULT_AUTO_REFRESH_MAX_AGE_DAYS = 7.0
+DEFAULT_AUTO_REFRESH_CHECK_INTERVAL_HOURS = 24.0
+
 
 def find_project_root(start: Path | None = None) -> Path:
     """Walk up from *start* (default: CWD) to the flash-rag project root.
@@ -74,6 +83,10 @@ class Config:
     providers: tuple[str, ...] = ()  # ONNX Runtime providers, e.g. ("CoreMLExecutionProvider",)
     workspace_dirs: tuple[Path, ...] = ()  # extra dirs to index (FLASH_RAG_WORKSPACE_DIRS)
     backend: str = DEFAULT_BACKEND  # "onnx" or "mlx"
+    auto_refresh_max_age_days: float = DEFAULT_AUTO_REFRESH_MAX_AGE_DAYS  # search auto-refreshes when the index is older than this
+    auto_refresh_check_interval_hours: float = (
+        DEFAULT_AUTO_REFRESH_CHECK_INTERVAL_HOURS  # pre-search freshness check runs at most once per interval
+    )
 
     @property
     def lancedb_dir(self) -> Path:
@@ -91,12 +104,27 @@ class Config:
     def meta_path(self) -> Path:
         return self.data_dir / "meta.json"
 
+    @property
+    def freshness_state_path(self) -> Path:
+        return self.data_dir / "freshness_state.json"
+
 
 def _load_env_file(root: Path) -> None:
     """Load ``<root>/.env`` if present. Real env vars always win (override=False)."""
     env_file = root / ".env"
     if env_file.is_file():
         load_dotenv(env_file, override=False)
+
+
+def _env_float(name: str, default: float) -> float:
+    """Read a float env var, falling back to *default* when unset/empty."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        raise ValueError(f"Invalid {name}={raw!r} — expected a number (e.g. 7 or 24)") from None
 
 
 def load_config(start: Path | None = None) -> Config:
@@ -131,6 +159,14 @@ def load_config(start: Path | None = None) -> Config:
             if p.strip()
         )
 
+    auto_refresh_max_age_days = _env_float(
+        "FLASH_RAG_AUTO_REFRESH_MAX_AGE_DAYS", DEFAULT_AUTO_REFRESH_MAX_AGE_DAYS
+    )
+    auto_refresh_check_interval_hours = _env_float(
+        "FLASH_RAG_AUTO_REFRESH_CHECK_INTERVAL_HOURS",
+        DEFAULT_AUTO_REFRESH_CHECK_INTERVAL_HOURS,
+    )
+
     return Config(
         root=root,
         docs_dir=docs_dir,
@@ -139,4 +175,6 @@ def load_config(start: Path | None = None) -> Config:
         providers=providers,
         workspace_dirs=workspace_dirs,
         backend=backend,
+        auto_refresh_max_age_days=auto_refresh_max_age_days,
+        auto_refresh_check_interval_hours=auto_refresh_check_interval_hours,
     )

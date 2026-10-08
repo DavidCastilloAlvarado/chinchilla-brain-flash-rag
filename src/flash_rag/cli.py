@@ -1,5 +1,5 @@
 """CLI entry points: ``search``, ``db-init``, ``db-refresh``, ``db-status``,
-``check_freshness_and_refresh``.
+``db-report``, ``check_freshness_and_refresh``.
 
 Each command is a standalone console script (see pyproject [project.scripts]),
 so agents and humans can call them directly:
@@ -8,7 +8,13 @@ so agents and humans can call them directly:
     uv run db-init [--force]
     uv run db-refresh
     uv run db-status
+    uv run db-report [--json]
     uv run check_freshness_and_refresh [--json]
+
+``search`` first runs a freshness check that happens at most once per day
+(state: ``.data/freshness_state.json``): when the index's last update is
+older than ``FLASH_RAG_AUTO_REFRESH_MAX_AGE_DAYS`` (default 7 days), an
+incremental refresh runs before the search.
 
 Exit codes: 0 = ok, 1 = error, 2 = index not initialized yet.
 """
@@ -16,7 +22,6 @@ Exit codes: 0 = ok, 1 = error, 2 = index not initialized yet.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 
 import typer
 from rich.console import Console
@@ -24,7 +29,8 @@ from rich.panel import Panel
 from rich.table import Table
 
 from . import __version__
-from .config import load_config
+from .config import Config, load_config
+from .freshness import index_age_days, maybe_auto_refresh
 from .index import (
     AlreadyInitialized,
     ModelMismatch,
@@ -101,6 +107,7 @@ def _search_cmd(
 ) -> None:
     """Hybrid search (BM25 + vector) over documents/ using the local index."""
     cfg = load_config()
+    _maybe_auto_refresh(cfg, as_json=as_json)
     try:
         data = run_search(cfg, query, top_k, path, vector_only=vector_only)
     except NotInitialized:
@@ -112,6 +119,30 @@ def _search_cmd(
         print(json.dumps(data, indent=2, ensure_ascii=False))
         return
     _print_results(data, full)
+
+
+def _maybe_auto_refresh(cfg: Config, as_json: bool) -> None:
+    """Pre-search freshness hook.
+
+    At most once per ``FLASH_RAG_AUTO_REFRESH_CHECK_INTERVAL_HOURS`` (default
+    24 h, state in ``.data/freshness_state.json``), checks the index age and
+    runs the incremental refresh first when the index is older than
+    ``FLASH_RAG_AUTO_REFRESH_MAX_AGE_DAYS`` (default 7 days). A failed
+    refresh fails the search (exit 1) with an actionable message instead of
+    silently serving an unrefreshed index. With ``--json`` all of this goes
+    to stderr so stdout stays pure JSON.
+    """
+    out = err_console if as_json else console
+    try:
+        maybe_auto_refresh(cfg, out)
+    except ModelMismatch as exc:
+        _fail(f"auto-refresh failed: {exc}")
+    except Exception as exc:  # noqa: BLE001 - report any failure cleanly
+        _fail(
+            f"auto-refresh failed: {exc}. Retry with "
+            f"[bold]uv run db-refresh[/] (the daily check is marked done and "
+            f"runs again in ~24 h)."
+        )
 
 
 def search() -> None:
@@ -205,7 +236,7 @@ _status_app = typer.Typer(add_completion=False)
 
 @_status_app.command()
 def _status_cmd() -> None:
-    """Show index status: model, file/chunk counts, last update."""
+    """Show index status: model, file/chunk counts, last update, freshness check."""
     cfg = load_config()
     store = Store(cfg.data_dir, cfg.model)
     meta = store.read_meta()
@@ -220,6 +251,13 @@ def _status_cmd() -> None:
         except (OSError, ValueError):
             pass
 
+    freshness = {}
+    if cfg.freshness_state_path.is_file():
+        try:
+            freshness = json.loads(cfg.freshness_state_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass
+
     table = Table(show_header=False, box=None, pad_edge=False)
     table.add_column(justify="right", style="cyan")
     table.add_column()
@@ -231,6 +269,13 @@ def _status_cmd() -> None:
     table.add_row("chunks", str(store.count()))
     table.add_row("created", str(meta.get("created", "?")))
     table.add_row("updated", str(meta.get("updated", "?")))
+    if freshness:
+        table.add_row(
+            "freshness check",
+            f"last {freshness.get('last_checked', '?')}, "
+            f"stale={'yes' if freshness.get('stale') else 'no'}, "
+            f"auto-refreshed={'yes' if freshness.get('refreshed') else 'no'}",
+        )
     table.add_row("data dir", str(cfg.data_dir))
     if cfg.workspace_dirs:
         table.add_row("workspace dirs", ", ".join(str(ws) for ws in cfg.workspace_dirs))
@@ -322,26 +367,6 @@ FRESHNESS_MAX_AGE_DAYS = 3.0
 _fresh_app = typer.Typer(add_completion=False)
 
 
-def _index_age_days(meta: dict | None) -> float | None:
-    """Age of the index in days, from the ``updated`` meta timestamp.
-
-    Returns ``None`` when the meta is missing or the timestamp is absent or
-    unparseable (callers treat that as stale).
-    """
-    if not meta:
-        return None
-    raw = meta.get("updated")
-    if not raw:
-        return None
-    try:
-        updated = datetime.fromisoformat(str(raw))
-    except ValueError:
-        return None
-    if updated.tzinfo is None:
-        updated = updated.replace(tzinfo=timezone.utc)
-    return max(0.0, (datetime.now(timezone.utc) - updated).total_seconds() / 86400)
-
-
 def _run_refresh(cfg) -> None:
     """Run an incremental refresh and print its stats (shared with db-refresh)."""
     try:
@@ -377,7 +402,7 @@ def _fresh_cmd(
         raise typer.Exit(EXIT_NOT_INITIALIZED)
 
     meta = store.read_meta()
-    age = _index_age_days(meta)
+    age = index_age_days(meta)
     fresh = age is not None and age <= FRESHNESS_MAX_AGE_DAYS
 
     if as_json:
