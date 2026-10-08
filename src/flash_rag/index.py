@@ -17,7 +17,7 @@ from rich.progress import (
 
 from .chunker import chunk_file, chunk_text
 from .config import EMBED_BATCH_SIZE, Config
-from .embedder import Embedder
+from .embedder import make_embedder
 from .pdf import extract_pdf_pages
 from .scanner import FileRecord, scan_files, scan_workspace_dir
 from .store import Store
@@ -146,7 +146,7 @@ def _embed_texts(
         f"Loading embedding model [bold]{cfg.model}[/] "
         "(downloaded from Hugging Face on first use, then cached)…"
     )
-    embedder = Embedder(cfg.model, cfg.providers, cache_dir=cfg.model_cache_dir)
+    embedder = make_embedder(cfg)
     dim = embedder.dim
     vectors: list[list[float]] = []
     with Progress(

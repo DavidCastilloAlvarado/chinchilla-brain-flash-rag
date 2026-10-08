@@ -219,6 +219,7 @@ def _status_cmd() -> None:
     table.add_column()
     table.add_row("version", __version__)
     table.add_row("model", str(meta.get("model", "?")))
+    table.add_row("backend", cfg.backend)
     table.add_row("dim", str(meta.get("dim", "?")))
     table.add_row("files indexed", str(len(manifest)))
     table.add_row("chunks", str(store.count()))

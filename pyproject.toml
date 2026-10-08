@@ -18,6 +18,11 @@ dependencies = [
     "pypdf>=4.0",
 ]
 
+[project.optional-dependencies]
+# MLX backend (Apple Silicon only): runs embeddings 100% on GPU/ANE.
+# Install with: uv sync --extra mlx   (then set FLASH_RAG_BACKEND=mlx)
+mlx = ["mlx-embeddings>=0.1.0"]
+
 [project.scripts]
 search = "flash_rag.cli:search"
 db-init = "flash_rag.cli:db_init"

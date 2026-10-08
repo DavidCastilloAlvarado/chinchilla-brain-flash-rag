@@ -23,6 +23,11 @@ PROJECT_NAME = "flash-rag"
 DEFAULT_MODEL = "nomic-ai/nomic-embed-text-v1.5"
 TABLE_NAME = "chunks"
 
+# Embedding backends: "onnx" (default, cross-platform via fastembed) or
+# "mlx" (Apple Silicon — 100% GPU/ANE, no CoreML graph splitting).
+BACKENDS = ("onnx", "mlx")
+DEFAULT_BACKEND = "onnx"
+
 # Chunking: 256-512 tokens with ~10-15% overlap is the 2025/26 RAG sweet spot.
 CHUNK_MAX_TOKENS = 512
 CHUNK_OVERLAP_TOKENS = 64
@@ -68,6 +73,7 @@ class Config:
     model: str
     providers: tuple[str, ...] = ()  # ONNX Runtime providers, e.g. ("CoreMLExecutionProvider",)
     workspace_dirs: tuple[Path, ...] = ()  # extra dirs to index (FLASH_RAG_WORKSPACE_DIRS)
+    backend: str = DEFAULT_BACKEND  # "onnx" or "mlx"
 
     @property
     def lancedb_dir(self) -> Path:
@@ -108,6 +114,11 @@ def load_config(start: Path | None = None) -> Config:
         data_dir = root / data_dir
 
     model = os.environ.get("FLASH_RAG_MODEL", DEFAULT_MODEL)
+    backend = os.environ.get("FLASH_RAG_BACKEND", DEFAULT_BACKEND).strip().lower()
+    if backend not in BACKENDS:
+        raise ValueError(
+            f"Invalid FLASH_RAG_BACKEND {backend!r} — expected one of: {', '.join(BACKENDS)}"
+        )
     raw_providers = os.environ.get("FLASH_RAG_PROVIDERS", "").strip()
     providers = tuple(p.strip() for p in raw_providers.split(",") if p.strip())
 
@@ -127,4 +138,5 @@ def load_config(start: Path | None = None) -> Config:
         model=model,
         providers=providers,
         workspace_dirs=workspace_dirs,
+        backend=backend,
     )

@@ -90,7 +90,8 @@ Real environment variables always take precedence over `.env`.
 | `FLASH_RAG_DOCS_DIR` | `<root>/documents` | documents to index |
 | `FLASH_RAG_DATA_DIR` | `<root>/.data` | where the index lives |
 | `FLASH_RAG_WORKSPACE_DIRS` | (none) | comma-separated extra dirs to index (recursively), e.g. `path/demo,path2/demo2` — junk dirs like `node_modules`, `__pycache__`, `dist` are ignored |
-| `FLASH_RAG_PROVIDERS` | (CPU) | comma-separated ONNX Runtime providers, e.g. `CoreMLExecutionProvider,CPUExecutionProvider` on Apple Silicon to use the GPU |
+| `FLASH_RAG_BACKEND` | `onnx` | embedding backend: `onnx` (default, cross-platform) or `mlx` (Apple Silicon, 100% GPU/ANE — install with `uv sync --extra mlx`) |
+| `FLASH_RAG_PROVIDERS` | (CPU) | comma-separated ONNX Runtime providers, e.g. `CoreMLExecutionProvider,CPUExecutionProvider` on Apple Silicon (MLX backend is preferred there) |
 
 Embedding model files are cached in `<FLASH_RAG_DATA_DIR>/models` (by default,
 `.data/models`) and reused by both indexing and search.

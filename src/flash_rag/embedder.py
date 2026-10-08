@@ -18,6 +18,8 @@ from pathlib import Path
 
 from fastembed import TextEmbedding
 
+from .config import Config
+
 
 class Embedder:
     """Thin wrapper around fastembed's TextEmbedding."""
@@ -45,3 +47,12 @@ class Embedder:
         if not texts:
             return []
         return [vec.tolist() for vec in self._model.embed(list(texts))]
+
+
+def make_embedder(cfg: Config):
+    """Create the embedder for the configured backend ("onnx" or "mlx")."""
+    if cfg.backend == "mlx":
+        from .mlx_embedder import MlxEmbedder
+
+        return MlxEmbedder(cfg.model, cache_dir=cfg.model_cache_dir)
+    return Embedder(cfg.model, cfg.providers, cache_dir=cfg.model_cache_dir)

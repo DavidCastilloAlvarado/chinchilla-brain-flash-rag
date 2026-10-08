@@ -38,8 +38,11 @@ uv run search "your question or topic" --json
   and per-file chunk/token counts, and files that exist but are not indexed.
 - Never commit `.data/` (chunks, vector index, embeddings, manifests) or
   `.env` (local config). Only `documents/` and code are source.
-- Settings live in `.env` (template: `.env.example`) — model, paths, and
-  ONNX providers; real env vars take precedence.
+- Settings live in `.env` (template: `.env.example`) — model, backend, paths,
+  and ONNX providers; real env vars take precedence.
+- `FLASH_RAG_BACKEND` selects the embedding backend: `onnx` (default) or
+  `mlx` (Apple Silicon, 100% GPU; needs `uv sync --extra mlx`). Switching
+  backend or model requires `uv run db-init --force`.
 - `FLASH_RAG_WORKSPACE_DIRS` (comma-separated) adds extra folders to the
   index; junk dirs (`node_modules`, `__pycache__`, `dist`, …) are ignored.
 - If you change `FLASH_RAG_MODEL`, rebuild with `uv run db-init --force`
