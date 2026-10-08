@@ -1,9 +1,33 @@
 # AGENTS.md — instructions for AI agents
 
 **This repository is a local knowledge base.** The documents in
-`documents/` are the source of truth for this project's domain knowledge.
-Use the CLI to retrieve from it instead of guessing or re-reading files
-blindly.
+`documents/` are the source of truth for **every question asked in this
+session** — not only the project's technical topics.
+
+## Source hierarchy (mandatory)
+
+For **any** factual question, sources are consulted in this exact order:
+
+1. **First and primary source: the KB CLI.** Run `uv run
+   check_freshness_and_refresh` (once a day) and `uv run search` BEFORE
+   answering. The KB is the sole data-retrieval mechanism: issue as many
+   queries as needed (rephrase, `-k`, `--full`, `--path`) until the data
+   is in hand. Never answer from memory before searching.
+2. **Direct source access (reading whole files, grepping the source
+   directory):** conditional, like external sources — only with the
+   user's explicit approval or request. Do not read or grep the source
+   directory to "find more context"; query the KB instead.
+3. **External sources (web, etc.):** only with the user's explicit
+   approval or instruction (e.g. "search the web for X"). Never query
+   external sources on your own initiative.
+4. **If the KB has no relevant result and there is no approval:** limit
+   the answer to what the search returned, and state clearly that the KB
+   has no relevant result. Do not fill the gap with direct source access,
+   external sources, or memory.
+
+Do not judge a question as "in-domain" or "out-of-domain" to skip the
+search. The search is always mandatory; relevance is decided by the search
+results, not by you.
 
 ## Query the knowledge base
 
@@ -20,29 +44,37 @@ uv run search "your question or topic" --json
 - Result fields: `file` (path under `documents/`), `section` (heading
   breadcrumb), `page` (PDF page, 1-based; `null` for .md/.txt), `score`
   (0–1, higher is better; fused relevance for hybrid, cosine similarity for
-  `--vector-only`), `start`/`end` (char offsets in the source file — read
-  that file for the full context), `text`.
-- After a good hit, open the referenced file (e.g. with your read tool) to
-  get the surrounding context beyond the chunk.
+  `--vector-only`), `start`/`end` (char offsets in the source file — useful to
+  disambiguate chunks; reading the file itself requires approval, see
+  hierarchy), `text`.
+- If a chunk does not give enough context, issue more queries (rephrase,
+  raise `-k`, `--full`, narrow with `--path`). Do NOT open the source file
+  to read around the chunk — that is direct source access and requires
+  approval (see hierarchy).
 
-### Freshness check (once per session, before the first search)
+### Freshness check (once a day)
 
-Run `uv run db-status` and read the `updated` timestamp. If it is **older
-than 3 days**, run `uv run db-refresh` first, then search. Never answer
-from an index that is more than 3 days stale without refreshing it.
+Run `uv run check_freshness_and_refresh` once per day, before the first
+search of the day. It checks the index age against the 3-day rule and
+refreshes automatically when stale; it responds `db fresh: true/false`.
+Never answer from an index that is more than 3 days stale without
+refreshing it.
 
 ## Citations (mandatory)
 
-Every fact or claim drawn from the knowledge base **must** be accompanied by
-a file citation — the `file` path from the search result that supports it
-(e.g. `documents/guides/getting-started.md`).
+Every fact or claim **must** be traceable to the source it came from,
+following the hierarchy above:
 
-- The number of citations matches the number of distinct source files the
-  answer draws from: one citation per file — no more, no less.
-- A claim with no supporting search result must be labeled as such
-  (e.g. "inference" / "not in the KB") — never presented as a KB fact.
-- When a chunk is cited, prefer opening the file and reading the surrounding
-  context before quoting it.
+- **From the KB:** file citation — the `file` path from the search result
+  that supports it (e.g. `documents/guides/getting-started.md`). The number
+  of citations matches the number of distinct source files the answer draws
+  from: one citation per file — no more, no less. Quote from the chunk
+  text (or from additional queries), not from the source file.
+- **From an external source (only with user approval):** cite that source
+  (e.g. the URL).
+- **When the KB has no relevant result and there is no approval:** state
+  that explicitly; do not present anything beyond the search results as
+  fact.
 
 ## Exit codes
 

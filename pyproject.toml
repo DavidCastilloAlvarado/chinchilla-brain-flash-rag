@@ -29,6 +29,7 @@ db-init = "flash_rag.cli:db_init"
 db-refresh = "flash_rag.cli:db_refresh"
 db-status = "flash_rag.cli:db_status"
 db-report = "flash_rag.cli:db_report"
+check_freshness_and_refresh = "flash_rag.cli:check_freshness_and_refresh"
 
 [build-system]
 requires = ["hatchling"]

@@ -1,4 +1,5 @@
-"""CLI entry points: ``search``, ``db-init``, ``db-refresh``, ``db-status``.
+"""CLI entry points: ``search``, ``db-init``, ``db-refresh``, ``db-status``,
+``check_freshness_and_refresh``.
 
 Each command is a standalone console script (see pyproject [project.scripts]),
 so agents and humans can call them directly:
@@ -7,6 +8,7 @@ so agents and humans can call them directly:
     uv run db-init [--force]
     uv run db-refresh
     uv run db-status
+    uv run check_freshness_and_refresh [--json]
 
 Exit codes: 0 = ok, 1 = error, 2 = index not initialized yet.
 """
@@ -14,6 +16,7 @@ Exit codes: 0 = ok, 1 = error, 2 = index not initialized yet.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 
 import typer
 from rich.console import Console
@@ -308,6 +311,101 @@ def _report_cmd(
 
 def db_report() -> None:
     _report_app()
+
+
+# ---------------------------------------------------------------------------
+# check_freshness_and_refresh
+# ---------------------------------------------------------------------------
+
+FRESHNESS_MAX_AGE_DAYS = 3.0
+
+_fresh_app = typer.Typer(add_completion=False)
+
+
+def _index_age_days(meta: dict | None) -> float | None:
+    """Age of the index in days, from the ``updated`` meta timestamp.
+
+    Returns ``None`` when the meta is missing or the timestamp is absent or
+    unparseable (callers treat that as stale).
+    """
+    if not meta:
+        return None
+    raw = meta.get("updated")
+    if not raw:
+        return None
+    try:
+        updated = datetime.fromisoformat(str(raw))
+    except ValueError:
+        return None
+    if updated.tzinfo is None:
+        updated = updated.replace(tzinfo=timezone.utc)
+    return max(0.0, (datetime.now(timezone.utc) - updated).total_seconds() / 86400)
+
+
+def _run_refresh(cfg) -> None:
+    """Run an incremental refresh and print its stats (shared with db-refresh)."""
+    try:
+        stats = refresh(cfg)
+    except ModelMismatch as exc:
+        _fail(str(exc))
+    except Exception as exc:  # noqa: BLE001
+        _fail(f"refresh failed: {exc}")
+    console.print(
+        f"[bold green]✓[/] +{stats.files_added} new, ~{stats.files_updated} updated, "
+        f"-{stats.files_removed} removed, {stats.files_unchanged} unchanged "
+        f"({stats.chunks_added} chunks added, {stats.chunks_removed} removed)"
+    )
+    if stats.skipped:
+        console.print(f"[yellow]{len(stats.skipped)} file(s) skipped:[/]")
+        for reason in stats.skipped:
+            console.print(f"  [dim]- {reason}[/]")
+
+
+@_fresh_app.command()
+def _fresh_cmd(
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable JSON output (for agents)."),
+) -> None:
+    """Check index age (3-day rule) and refresh automatically when stale.
+
+    Responds ``db fresh: true`` or ``db fresh: false``; when stale it runs
+    the incremental refresh internally and ends with ``db fresh: true``.
+    """
+    cfg = load_config()
+    store = Store(cfg.data_dir, cfg.model)
+    if not store.exists():
+        _print_not_initialized()
+        raise typer.Exit(EXIT_NOT_INITIALIZED)
+
+    meta = store.read_meta()
+    age = _index_age_days(meta)
+    fresh = age is not None and age <= FRESHNESS_MAX_AGE_DAYS
+
+    if as_json:
+        result: dict = {
+            "db_fresh": fresh,
+            "updated": (meta or {}).get("updated"),
+            "age_days": round(age, 2) if age is not None else None,
+            "max_age_days": FRESHNESS_MAX_AGE_DAYS,
+            "refreshed": False,
+        }
+        if not fresh:
+            _run_refresh(cfg)
+            result["refreshed"] = True
+            result["db_fresh"] = True
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return
+
+    if fresh:
+        console.print("db fresh: true")
+        return
+
+    console.print("db fresh: false")
+    _run_refresh(cfg)
+    console.print("db fresh: true")
+
+
+def check_freshness_and_refresh() -> None:
+    _fresh_app()
 
 
 if __name__ == "__main__":
