@@ -92,11 +92,14 @@ def _search_cmd(
     as_json: bool = typer.Option(False, "--json", help="Machine-readable JSON output (for agents)."),
     path: str = typer.Option(None, "--path", help="Only results whose file path starts with this prefix."),
     full: bool = typer.Option(False, "--full", help="Print full chunk text instead of a snippet."),
+    vector_only: bool = typer.Option(
+        False, "--vector-only", help="Disable the BM25 full-text leg (pure vector search)."
+    ),
 ) -> None:
-    """Semantic search over documents/ using the local vector index."""
+    """Hybrid search (BM25 + vector) over documents/ using the local index."""
     cfg = load_config()
     try:
-        data = run_search(cfg, query, top_k, path)
+        data = run_search(cfg, query, top_k, path, vector_only=vector_only)
     except NotInitialized:
         _print_not_initialized()
         raise typer.Exit(EXIT_NOT_INITIALIZED)

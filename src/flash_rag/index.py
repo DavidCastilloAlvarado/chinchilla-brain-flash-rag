@@ -314,6 +314,7 @@ def build(cfg: Config, force: bool = False, console: Console | None = None) -> I
         dim = make_embedder(cfg).dim
         store.create([], dim)
     _save_manifest(cfg, manifest)
+    store.ensure_fts_index()
     store.write_meta(dim, created=True)
     return stats
 
@@ -382,4 +383,5 @@ def refresh(cfg: Config, console: Console | None = None) -> IndexStats:
         store.write_meta(dim, created=False)
     else:
         store.write_meta((meta or {}).get("dim", 0), created=False)
+    store.ensure_fts_index()
     return stats

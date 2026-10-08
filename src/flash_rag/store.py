@@ -14,6 +14,7 @@ from pathlib import Path
 
 import lancedb
 import pyarrow as pa
+from lancedb.index import FTS
 
 from .config import TABLE_NAME
 
@@ -86,6 +87,20 @@ class Store:
         if self.exists():
             self._table().delete(f"file_path = '{_escape(rel_path)}'")
 
+    def ensure_fts_index(self) -> None:
+        """Create the BM25 full-text index on ``text`` if missing (idempotent).
+
+        Uses the classic English stop-word list + stemming (FTS defaults).
+        The index is maintained automatically by LanceDB on subsequent adds.
+        """
+        if not self.exists():
+            return
+        table = self._table()
+        for idx in table.list_indices():
+            if idx.index_type == "FTS" and "text" in idx.columns:
+                return
+        table.create_index("text", config=FTS(remove_stop_words=True))
+
     def count(self) -> int:
         if not self.exists():
             return 0
@@ -94,12 +109,27 @@ class Store:
     # -- search -------------------------------------------------------------
 
     def search(
-        self, vector: list[float], k: int, path_filter: str | None = None
+        self,
+        vector: list[float],
+        k: int,
+        path_filter: str | None = None,
+        text_query: str | None = None,
     ) -> list[dict]:
-        q = self._table().search(vector).metric("cosine").limit(k)
+        """Hybrid search (BM25 + vector, fused) when *text_query* is given,
+        pure cosine vector search otherwise."""
+        table = self._table()
+        if text_query:
+            q = (
+                table.search(None, query_type="hybrid")
+                .vector(vector)
+                .text(text_query)
+                .metric("cosine")
+            )
+        else:
+            q = table.search(vector).metric("cosine")
         if path_filter:
             q = q.where(f"file_path LIKE '{_escape(path_filter)}%'")
-        return q.to_list()
+        return q.limit(k).to_list()
 
     # -- metadata -----------------------------------------------------------
 

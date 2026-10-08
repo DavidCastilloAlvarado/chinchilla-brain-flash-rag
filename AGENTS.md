@@ -12,12 +12,16 @@ uv run search "your question or topic" --json
 ```
 
 - Always prefer `--json` — it is stable and machine-readable.
+- Search is **hybrid by default** (BM25 full-text + vector, fused score) —
+  exact identifiers, model names and config keys match via BM25, semantics
+  via the vector leg. Use `--vector-only` to disable the full-text leg.
 - Use `-k 10` (or higher) when you need broader context; `--full` for the
   complete chunk text; `--path <prefix>` to restrict to a folder.
 - Result fields: `file` (path under `documents/`), `section` (heading
   breadcrumb), `page` (PDF page, 1-based; `null` for .md/.txt), `score`
-  (cosine similarity 0–1), `start`/`end` (char offsets in the source file —
-  read that file for the full context), `text`.
+  (0–1, higher is better; fused relevance for hybrid, cosine similarity for
+  `--vector-only`), `start`/`end` (char offsets in the source file — read
+  that file for the full context), `text`.
 - After a good hit, open the referenced file (e.g. with your read tool) to
   get the surrounding context beyond the chunk.
 

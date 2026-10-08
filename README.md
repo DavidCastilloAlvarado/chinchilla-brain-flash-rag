@@ -26,7 +26,7 @@ uv run search "chunking strategy"
 
 | Command | What it does |
 |---|---|
-| `uv run search "query"` | Semantic search over the index. Flags: `-k/--top-k`, `--json`, `--path PREFIX`, `--full` |
+| `uv run search "query"` | Hybrid search (BM25 full-text + vector, fused) over the index. Flags: `-k/--top-k`, `--json`, `--path PREFIX`, `--full`, `--vector-only` (disable the BM25 leg) |
 | `uv run db-init` | First-time build: map, chunk and embed all supported files. `--force` rebuilds from scratch |
 | `uv run db-refresh` | Incremental sync: hash-diff files, embed only what's new/changed, drop deleted |
 | `uv run db-status` | Model, file/chunk counts, timestamps |
