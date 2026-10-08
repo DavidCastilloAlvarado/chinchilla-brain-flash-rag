@@ -29,7 +29,48 @@ import mlx.core as mx
 import mlx.nn as nn
 
 from mlx_embeddings.models.base import BaseModelArgs, BaseModelOutput, normalize_embeddings
-from mlx_embeddings.models.pooling import pool_by_config
+
+
+def _pool_by_config(token_embeddings, attention_mask, pooling_config):
+    """Pool token embeddings per the model's pooling config.
+
+    Local copy of mlx-embeddings' ``pool_by_config`` — the released 0.1.0
+    wheel predates the ``models/pooling`` module, so we don't import it.
+    Supports both the simple ``{"pooling_mode": ...}`` format and the legacy
+    sentence-transformers flag format (``pooling_mode_mean_tokens: true``).
+    """
+    cfg = dict(pooling_config or {})
+    legacy = {
+        "pooling_mode_cls_token": "cls",
+        "pooling_mode_max_tokens": "max",
+        "pooling_mode_mean_tokens": "mean",
+        "pooling_mode_lasttoken": "lasttoken",
+    }
+    if "pooling_mode" not in cfg:
+        active = [name for key, name in legacy.items() if cfg.get(key)]
+        cfg["pooling_mode"] = active[0] if active else "mean"
+    mode = cfg["pooling_mode"]
+    b, l, d = token_embeddings.shape
+
+    if mode == "mean":
+        mask = mx.broadcast_to(mx.expand_dims(attention_mask, -1), token_embeddings.shape).astype(mx.float32)
+        return mx.sum(token_embeddings * mask, axis=1) / mx.maximum(mx.sum(mask, axis=1), 1e-9)
+    if mode == "cls":
+        idx = mx.broadcast_to(mx.argmax(attention_mask, axis=1)[:, None, None], (b, 1, d))
+        return mx.squeeze(mx.take_along_axis(token_embeddings, idx, axis=1), axis=1)
+    if mode == "max":
+        mask = mx.broadcast_to(mx.expand_dims(attention_mask, -1), token_embeddings.shape).astype(token_embeddings.dtype)
+        return mx.max(mx.where(mask == 0, -float("inf"), token_embeddings), axis=1)
+    if mode == "lasttoken":
+        flipped = attention_mask[:, ::-1]
+        flip_idx = mx.argmax(flipped, axis=1)
+        has_any = mx.max(flipped, axis=1)
+        flip_idx = mx.where(has_any == 0, l - 1, flip_idx)
+        last_idx = l - flip_idx - 1
+        idx = mx.broadcast_to(last_idx[:, None, None], (b, 1, d))
+        mask = mx.broadcast_to(attention_mask[:, :, None], token_embeddings.shape).astype(token_embeddings.dtype)
+        return mx.squeeze(mx.take_along_axis(token_embeddings * mask, idx, axis=1), axis=1)
+    raise ValueError(f"Unsupported pooling mode {mode!r}")
 
 
 @dataclass
@@ -183,7 +224,7 @@ class Model(nn.Module):
         x = self.embeddings(input_ids, token_type_ids)
         x = self.encoder(x, mask)
 
-        text_embeds = pool_by_config(x, attention_mask, self.config.pooling_config)
+        text_embeds = _pool_by_config(x, attention_mask, self.config.pooling_config)
         text_embeds = normalize_embeddings(text_embeds)
         return BaseModelOutput(last_hidden_state=x, text_embeds=text_embeds)
 
