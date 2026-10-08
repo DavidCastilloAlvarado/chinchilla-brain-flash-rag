@@ -289,6 +289,13 @@ def build(cfg: Config, force: bool = False, console: Console | None = None) -> I
             return refresh(cfg, console=console)
         raise AlreadyInitialized()
     if store.exists():
+        if force:
+            n = len(_load_manifest(cfg))
+            if n:
+                console.print(
+                    f"[red]--force: dropping existing index — {n} already-indexed "
+                    f"file(s) will be re-embedded from scratch.[/]"
+                )
         store.drop()
 
     stats = IndexStats()
